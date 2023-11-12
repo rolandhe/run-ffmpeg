@@ -14,8 +14,10 @@ if [ $OS_NAME = "Darwin" ];then
   # Mac OS X 操作系统
   echo "mac os, and will install"
   sudo make install
+  sudo ldconfig
 else
   # GNU/Linux操作系统
   echo "linux, and will install"
   sudo make install
+  sudo ldconfig
 fi

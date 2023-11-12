@@ -12,6 +12,7 @@
 #include "common.h"
 #include "transcode.h"
 #include "open_files.h"
+#include "hw.h"
 
 
 static int opt_data_frames(void *optctx, const char *opt, const char *arg);
@@ -39,6 +40,12 @@ static int opt_filter_complex(void *optctx, const char *opt, const char *arg);
 static int opt_filter_complex_script(void *optctx, const char *opt, const char *arg);
 static int opt_streamid(void *optctx, const char *opt, const char *arg);
 static int opt_timecode(void *optctx, const char *opt, const char *arg);
+static int opt_map(void *optctx, const char *opt, const char *arg);
+static int opt_map_channel(void *optctx, const char *opt, const char *arg);
+static int opt_bitrate(void *optctx, const char *opt, const char *arg);
+static int opt_vsync(void *optctx, const char *opt, const char *arg);
+static int opt_init_hw_device(void *optctx, const char *opt, const char *arg);
+static int opt_filter_hw_device(void *optctx, const char *opt, const char *arg);
 
 static const char *const G_FRAME_RATES[] = { "25", "30000/1001", "24000/1001" };
 
@@ -52,62 +59,9 @@ static const char *const G_FRAME_RATES[] = { "25", "30000/1001", "24000/1001" };
     }\
 }
 
-static int read_float_for_opt(char * trace_id,const char *opt, const char *arg,float *target){
-    int has_error = 0;
-    float value = parse_number_or_die(trace_id,opt, arg, OPT_FLOAT, -INFINITY, INFINITY, &has_error);
-    if(has_error < 0){
-        return -1;
-    }
-    *target = value;
-    return  0;
-}
-
-static int read_int_for_opt(char * trace_id,const char *opt, const char *arg,int *target){
-    int has_error = 0;
-    int value = parse_number_or_die(trace_id,opt, arg, OPT_INT64, 0, INT_MAX, &has_error);
-    if(has_error < 0){
-        return -1;
-    }
-    *target = value;
-    return  0;
-}
 
 
 
-
-static int opt_bitrate(void *optctx, const char *opt, const char *arg)
-{
-    OptionsContext *o = optctx;
-
-    if(!strcmp(opt, "ab")){
-        av_dict_set(&o->g->codec_opts, "b:a", arg, 0);
-        return 0;
-    } else if(!strcmp(opt, "b")){
-        av_log(NULL, AV_LOG_WARNING, "tid=%s,Please use -b:a or -b:v, -b is ambiguous\n",o->run_context_ref->trace_id);
-        av_dict_set(&o->g->codec_opts, "b:v", arg, 0);
-        return 0;
-    }
-    av_dict_set(&o->g->codec_opts, opt, arg, 0);
-    return 0;
-}
-
-static int opt_vsync(void *optctx, const char *opt, const char *arg)
-{
-    OptionsContext *o = optctx;
-    if      (!av_strcasecmp(arg, "cfr"))         o->run_context_ref->video_sync_method = VSYNC_CFR;
-    else if (!av_strcasecmp(arg, "vfr"))         o->run_context_ref->video_sync_method = VSYNC_VFR;
-    else if (!av_strcasecmp(arg, "passthrough")) o->run_context_ref->video_sync_method = VSYNC_PASSTHROUGH;
-    else if (!av_strcasecmp(arg, "drop"))        o->run_context_ref->video_sync_method = VSYNC_DROP;
-
-    if (o->run_context_ref->video_sync_method == VSYNC_AUTO){
-        int has_error = 0;
-        o->run_context_ref->video_sync_method = parse_number_or_die(o->run_context_ref->trace_id,"vsync", arg, OPT_INT, VSYNC_AUTO, VSYNC_VFR, &has_error);
-        if(has_error < 0){
-            return  - 1;
-        }
-    }
-    return 0;
-}
 
 
 
@@ -136,12 +90,12 @@ const OptionDef options[] = {
         { "pre",            HAS_ARG | OPT_STRING | OPT_SPEC |
                             OPT_OUTPUT,                                  { .off       = OFFSET(presets) },
           "preset name", "preset" },
-//        { "map",            HAS_ARG | OPT_EXPERT | OPT_PERFILE |
-//                            OPT_OUTPUT,                                  { .func_arg = opt_map },
-//                    "set input stream mapping",
-//                    "[-]input_file_id[:stream_specifier][,sync_file_id[:stream_specifier]]" },
-//        { "map_channel",    HAS_ARG | OPT_EXPERT | OPT_PERFILE | OPT_OUTPUT, { .func_arg = opt_map_channel },
-//                    "map an audio channel from one stream to another", "file.stream.channel[:syncfile.syncstream]" },
+        { "map",            HAS_ARG | OPT_EXPERT | OPT_PERFILE |
+                            OPT_OUTPUT,                                  { .func_arg = opt_map },
+                    "set input stream mapping",
+                    "[-]input_file_id[:stream_specifier][,sync_file_id[:stream_specifier]]" },
+        { "map_channel",    HAS_ARG | OPT_EXPERT | OPT_PERFILE | OPT_OUTPUT, { .func_arg = opt_map_channel },
+                    "map an audio channel from one stream to another", "file.stream.channel[:syncfile.syncstream]" },
         { "map_metadata",   HAS_ARG | OPT_STRING | OPT_SPEC |
                             OPT_OUTPUT,                                  { .off       = OFFSET(metadata_map) },
           "set metadata information of outfile from infile",
@@ -509,17 +463,306 @@ const OptionDef options[] = {
         "set QSV hardware device (DirectX adapter index, DRM path or X11 display name)", "device"},
 #endif
 
-//        { "init_hw_device", HAS_ARG | OPT_EXPERT, { .func_arg = opt_init_hw_device },
-//          "initialise hardware device", "args" },
-//        { "filter_hw_device", HAS_ARG | OPT_EXPERT, { .func_arg = opt_filter_hw_device },
-//          "set hardware device used when filtering", "device" },
+        { "init_hw_device", HAS_ARG | OPT_EXPERT, { .func_arg = opt_init_hw_device },
+          "initialise hardware device", "args" },
+        { "filter_hw_device", HAS_ARG | OPT_EXPERT, { .func_arg = opt_filter_hw_device },
+          "set hardware device used when filtering", "device" },
 
         { NULL, },
 };
 
+static int opt_init_hw_device(void *optctx, const char *opt, const char *arg)
+{
+    OptionsContext  * o = optctx;
+    if (!strcmp(arg, "list")) {
+        enum AVHWDeviceType type = AV_HWDEVICE_TYPE_NONE;
+        av_log(NULL,AV_LOG_INFO,"tid=%s,Supported hardware device types:\n",o->run_context_ref->trace_id);
+        while ((type = av_hwdevice_iterate_types(type)) !=
+               AV_HWDEVICE_TYPE_NONE)
+            av_log(NULL,AV_LOG_INFO,"tid=%s,%s\n", o->run_context_ref->trace_id,av_hwdevice_get_type_name(type));
+//        exit_program(0);
+        return -1;
+    } else {
+
+        return hw_device_init_from_string(o->run_context_ref,arg, NULL);
+    }
+}
+
+static int opt_filter_hw_device(void *optctx, const char *opt, const char *arg)
+{
+    OptionsContext  * o = optctx;
+    RunContext * run_context = o->run_context_ref;
+    char * trace_id = run_context->trace_id;
+    if (run_context->filter_hw_device) {
+        av_log(NULL, AV_LOG_ERROR, "tid=%s,Only one filter device can be used.\n",trace_id);
+        return AVERROR(EINVAL);
+    }
+    run_context->filter_hw_device = hw_device_get_by_name(run_context,arg);
+    if (!run_context->filter_hw_device) {
+        av_log(NULL, AV_LOG_ERROR, "tid=%s,Invalid filter device %s.\n", trace_id,arg);
+        return AVERROR(EINVAL);
+    }
+    return 0;
+}
+
+static int opt_map(void *optctx, const char *opt, const char *arg)
+{
+    OptionsContext *o = optctx;
+    StreamMap *m = NULL;
+    int i, negative = 0, file_idx, disabled = 0;
+    int sync_file_idx = -1, sync_stream_idx = 0;
+    char *p, *sync;
+    char *map;
+    char *allow_unused;
+
+    if (*arg == '-') {
+        negative = 1;
+        arg++;
+    }
+    map = av_strdup(arg);
+    if (!map)
+        return AVERROR(ENOMEM);
+
+    char * trace_id =o->run_context_ref->trace_id;
+
+    RunContext* run_context = o->run_context_ref;
+
+    /* parse sync stream first, just pick first matching stream */
+    if (sync = strchr(map, ',')) {
+        *sync = 0;
+        sync_file_idx = strtol(sync + 1, &sync, 0);
+        if (sync_file_idx >= run_context->option_input.nb_input_files || sync_file_idx < 0) {
+            av_log(NULL, AV_LOG_FATAL, "tid=%s,Invalid sync file index: %d.\n", trace_id,sync_file_idx);
+//            exit_program(1);
+            return -1;
+        }
+        if (*sync)
+            sync++;
+        for (i = 0; i < run_context->option_input.input_files[sync_file_idx]->nb_streams; i++)
+            if (check_stream_specifier(run_context->option_input.input_files[sync_file_idx]->ctx,
+                                       run_context->option_input.input_files[sync_file_idx]->ctx->streams[i], sync) == 1) {
+                sync_stream_idx = i;
+                break;
+            }
+        if (i == run_context->option_input.input_files[sync_file_idx]->nb_streams) {
+            av_log(NULL, AV_LOG_FATAL, "tid=%s,Sync stream specification in map %s does not "
+                                       "match any streams.\n",trace_id, arg);
+//            exit_program(1);
+            return -1;
+        }
+        if (run_context->option_input.input_streams[run_context->option_input.input_files[sync_file_idx]->ist_index + sync_stream_idx]->user_set_discard == AVDISCARD_ALL) {
+            av_log(NULL, AV_LOG_FATAL, "tid=%s,Sync stream specification in map %s matches a disabled input "
+                                       "stream.\n", trace_id,arg);
+//            exit_program(1);
+            return -1;
+        }
+    }
 
 
+    if (map[0] == '[') {
+        /* this mapping refers to lavfi output */
+        const char *c = map + 1;
+        int has_err = 0;
+        GROW_ARRAY(trace_id,o->stream_maps, o->nb_stream_maps,has_err);
+        if(has_err < 0){
+            return -1;
+        }
+        m = &o->stream_maps[o->nb_stream_maps - 1];
+        m->linklabel = av_get_token(&c, "]");
+        if (!m->linklabel) {
+            av_log(NULL, AV_LOG_ERROR, "tid=%s,Invalid output link label: %s.\n",trace_id, map);
+//            exit_program(1);
+            return  -1;
+        }
+    } else {
+        if (allow_unused = strchr(map, '?'))
+            *allow_unused = 0;
+        file_idx = strtol(map, &p, 0);
+        if (file_idx >= run_context->option_input.nb_input_files || file_idx < 0) {
+            av_log(NULL, AV_LOG_FATAL, "tid=%s,Invalid input file index: %d.\n", trace_id,file_idx);
+//            exit_program(1);
+            return -1;
+        }
+        if (negative)
+            /* disable some already defined maps */
+            for (i = 0; i < o->nb_stream_maps; i++) {
+                m = &o->stream_maps[i];
+                if (file_idx == m->file_index &&
+                    check_stream_specifier(run_context->option_input.input_files[m->file_index]->ctx,
+                                           run_context->option_input.input_files[m->file_index]->ctx->streams[m->stream_index],
+                                           *p == ':' ? p + 1 : p) > 0)
+                    m->disabled = 1;
+            }
+        else
+            for (i = 0; i < run_context->option_input.input_files[file_idx]->nb_streams; i++) {
+                if (check_stream_specifier(run_context->option_input.input_files[file_idx]->ctx, run_context->option_input.input_files[file_idx]->ctx->streams[i],
+                                           *p == ':' ? p + 1 : p) <= 0)
+                    continue;
+                if (run_context->option_input.input_streams[run_context->option_input.input_files[file_idx]->ist_index + i]->user_set_discard == AVDISCARD_ALL) {
+                    disabled = 1;
+                    continue;
+                }
+                int has_err = 0;
+                GROW_ARRAY(trace_id,o->stream_maps, o->nb_stream_maps,has_err);
+                if(has_err < 0){
+                    return -1;
+                }
+                m = &o->stream_maps[o->nb_stream_maps - 1];
 
+                m->file_index   = file_idx;
+                m->stream_index = i;
+
+                if (sync_file_idx >= 0) {
+                    m->sync_file_index   = sync_file_idx;
+                    m->sync_stream_index = sync_stream_idx;
+                } else {
+                    m->sync_file_index   = file_idx;
+                    m->sync_stream_index = i;
+                }
+            }
+    }
+
+    if (!m) {
+        if (allow_unused) {
+            av_log(NULL, AV_LOG_VERBOSE, "tid=%s,Stream map '%s' matches no streams; ignoring.\n", trace_id,arg);
+        } else if (disabled) {
+            av_log(NULL, AV_LOG_FATAL, "tid=%s,Stream map '%s' matches disabled streams.\n"
+                                       "To ignore this, add a trailing '?' to the map.\n",trace_id, arg);
+//            exit_program(1);
+            return -1;
+        } else {
+            av_log(NULL, AV_LOG_FATAL, "tid=%s,Stream map '%s' matches no streams.\n"
+                                       "To ignore this, add a trailing '?' to the map.\n", trace_id,arg);
+//            exit_program(1);
+            return  -1;
+        }
+    }
+
+    av_freep(&map);
+    return 0;
+}
+
+static int opt_map_channel(void *optctx, const char *opt, const char *arg)
+{
+    OptionsContext *o = optctx;
+    int n;
+    AVStream *st;
+    AudioChannelMap *m;
+    char *allow_unused;
+    char *mapchan;
+    mapchan = av_strdup(arg);
+    if (!mapchan)
+        return AVERROR(ENOMEM);
+
+    RunContext * run_context = o->run_context_ref;
+    char * trace_id = run_context->trace_id;
+    int has_err = 0;
+    GROW_ARRAY(trace_id,o->audio_channel_maps, o->nb_audio_channel_maps,has_err);
+    if(has_err < 0){
+        return -1;
+    }
+    m = &o->audio_channel_maps[o->nb_audio_channel_maps - 1];
+
+    /* muted channel syntax */
+    n = sscanf(arg, "%d:%d.%d", &m->channel_idx, &m->ofile_idx, &m->ostream_idx);
+    if ((n == 1 || n == 3) && m->channel_idx == -1) {
+        m->file_idx = m->stream_idx = -1;
+        if (n == 1)
+            m->ofile_idx = m->ostream_idx = -1;
+        av_free(mapchan);
+        return 0;
+    }
+
+    /* normal syntax */
+    n = sscanf(arg, "%d.%d.%d:%d.%d",
+               &m->file_idx,  &m->stream_idx, &m->channel_idx,
+               &m->ofile_idx, &m->ostream_idx);
+
+    if (n != 3 && n != 5) {
+        av_log(NULL, AV_LOG_FATAL, "tid=%s,Syntax error, mapchan usage: "
+                                   "[file.stream.channel|-1][:syncfile:syncstream]\n",trace_id);
+//        exit_program(1);
+        return -1;
+    }
+
+    if (n != 5) // only file.stream.channel specified
+        m->ofile_idx = m->ostream_idx = -1;
+
+    /* check input */
+    if (m->file_idx < 0 || m->file_idx >= run_context->option_input.nb_input_files) {
+        av_log(NULL, AV_LOG_FATAL, "tid=%s,mapchan: invalid input file index: %d\n",
+               trace_id, m->file_idx);
+//        exit_program(1);
+        return -1;
+    }
+    if (m->stream_idx < 0 ||
+        m->stream_idx >= run_context->option_input.input_files[m->file_idx]->nb_streams) {
+        av_log(NULL, AV_LOG_FATAL, "tid=%s,mapchan: invalid input file stream index #%d.%d\n",
+               trace_id, m->file_idx, m->stream_idx);
+//        exit_program(1);
+        return -1;
+    }
+    st = run_context->option_input.input_files[m->file_idx]->ctx->streams[m->stream_idx];
+    if (st->codecpar->codec_type != AVMEDIA_TYPE_AUDIO) {
+        av_log(NULL, AV_LOG_FATAL, "tid=%s,mapchan: stream #%d.%d is not an audio stream.\n",
+               trace_id, m->file_idx, m->stream_idx);
+//        exit_program(1);
+        return -1;
+    }
+    /* allow trailing ? to map_channel */
+    if (allow_unused = strchr(mapchan, '?'))
+        *allow_unused = 0;
+    if (m->channel_idx < 0 || m->channel_idx >= st->codecpar->channels ||
+        run_context->option_input.input_streams[run_context->option_input.input_files[m->file_idx]->ist_index + m->stream_idx]->user_set_discard == AVDISCARD_ALL) {
+        if (allow_unused) {
+            av_log(NULL, AV_LOG_VERBOSE, "mapchan: invalid audio channel #%d.%d.%d\n",
+                   m->file_idx, m->stream_idx, m->channel_idx);
+        } else {
+            av_log(NULL, AV_LOG_FATAL,  "tid=%s,mapchan: invalid audio channel #%d.%d.%d\n"
+                                        "To ignore this, add a trailing '?' to the map_channel.\n",
+                   trace_id, m->file_idx, m->stream_idx, m->channel_idx);
+//            exit_program(1);
+            return -1;
+        }
+
+    }
+    av_free(mapchan);
+    return 0;
+}
+
+static int opt_bitrate(void *optctx, const char *opt, const char *arg)
+{
+    OptionsContext *o = optctx;
+
+    if(!strcmp(opt, "ab")){
+        av_dict_set(&o->g->codec_opts, "b:a", arg, 0);
+        return 0;
+    } else if(!strcmp(opt, "b")){
+        av_log(NULL, AV_LOG_WARNING, "tid=%s,Please use -b:a or -b:v, -b is ambiguous\n",o->run_context_ref->trace_id);
+        av_dict_set(&o->g->codec_opts, "b:v", arg, 0);
+        return 0;
+    }
+    av_dict_set(&o->g->codec_opts, opt, arg, 0);
+    return 0;
+}
+
+static int opt_vsync(void *optctx, const char *opt, const char *arg)
+{
+    OptionsContext *o = optctx;
+    if      (!av_strcasecmp(arg, "cfr"))         o->run_context_ref->video_sync_method = VSYNC_CFR;
+    else if (!av_strcasecmp(arg, "vfr"))         o->run_context_ref->video_sync_method = VSYNC_VFR;
+    else if (!av_strcasecmp(arg, "passthrough")) o->run_context_ref->video_sync_method = VSYNC_PASSTHROUGH;
+    else if (!av_strcasecmp(arg, "drop"))        o->run_context_ref->video_sync_method = VSYNC_DROP;
+
+    if (o->run_context_ref->video_sync_method == VSYNC_AUTO){
+        int has_error = 0;
+        o->run_context_ref->video_sync_method = parse_number_or_die(o->run_context_ref->trace_id,"vsync", arg, OPT_INT, VSYNC_AUTO, VSYNC_VFR, &has_error);
+        if(has_error < 0){
+            return  - 1;
+        }
+    }
+    return 0;
+}
 
 static int opt_streamid(void *optctx, const char *opt, const char *arg)
 {
