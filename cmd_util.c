@@ -665,10 +665,13 @@ void uninit_parse_context(ParseContext *octx) {
 
     for (i = 0; i < octx->nb_groups; i++) {
         OptionGroupList *l = &octx->groups[i];
-
+        OptionGroupDef *  l_gd = l->group_def;
+        av_freep(&l->group_def);
         for (j = 0; j < l->nb_groups; j++) {
             av_freep(&l->groups[j].opts);
-            av_freep(&l->groups[j].group_def);
+            if(l_gd != l->groups[j].group_def){
+                av_freep(&l->groups[j].group_def);
+            }
             av_dict_free(&l->groups[j].codec_opts);
             av_dict_free(&l->groups[j].format_opts);
             av_dict_free(&l->groups[j].resample_opts);

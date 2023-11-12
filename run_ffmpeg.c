@@ -1366,6 +1366,7 @@ int calc(const char * trace_id,const char * filename,AVInputFormat *inputFormat,
     AVFormatContext *formatContext = avformat_alloc_context();
     int ret = avformat_open_input(&formatContext, filename, inputFormat, NULL);
     if (ret < 0) {
+        avformat_close_input(&formatContext);
         av_log(NULL,AV_LOG_INFO,"tid=%s,avformat_open_input error.\n",trace_id);
         return -1;
     }
@@ -1416,7 +1417,7 @@ int calc(const char * trace_id,const char * filename,AVInputFormat *inputFormat,
         av_packet_unref(packet);
     }
 
-    av_packet_free(packet);
+    av_packet_free(&packet);
     *p_duration = (int64_t)(totalDuration * base_val * 100000);
     // 关闭输入文件
     avformat_close_input(&formatContext);
