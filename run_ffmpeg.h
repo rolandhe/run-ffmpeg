@@ -9,8 +9,6 @@
 
 
 
-#define QUICK_DURATION_INCORRECT -101
-
 int show_hwaccels();
 void init_ffmpeg();
 int run_ffmpeg_cmd(char * trace_id,char * cmd);

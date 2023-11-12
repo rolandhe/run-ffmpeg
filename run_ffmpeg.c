@@ -1362,64 +1362,119 @@ int run_ffmpeg_cmd(char * trace_id,char * cmd){
     return ret;
 }
 
-const char * used_ext[] = {".mp3",".aac"};
+int calc(const char * trace_id,const char * filename,AVInputFormat *inputFormat,int64_t * p_duration) {
+    AVFormatContext *formatContext = avformat_alloc_context();
+    int ret = avformat_open_input(&formatContext, filename, inputFormat, NULL);
+    if (ret < 0) {
+        av_log(NULL,AV_LOG_INFO,"tid=%s,avformat_open_input error.\n",trace_id);
+        return -1;
+    }
 
-int get_duration_next(char *trace_id,char *cmd,int next,int64_t * p_duration){
-    * p_duration = -1;
+    // 获取流信息
+    if (avformat_find_stream_info(formatContext, NULL) < 0) {
+        avformat_close_input(&formatContext);
+        av_log(NULL,AV_LOG_INFO,"tid=%s,avformat_find_stream_info error.\n",trace_id);
+        return -1;
+    }
+
+    // 找到音频流
+    int audioStreamIndex = -1;
+    for (int i = 0; i < formatContext->nb_streams; i++) {
+        if (formatContext->streams[i]->codecpar->codec_type == AVMEDIA_TYPE_AUDIO) {
+            audioStreamIndex = i;
+            break;
+        }
+    }
+
+    if (audioStreamIndex == -1) {
+        avformat_close_input(&formatContext);
+        av_log(NULL,AV_LOG_INFO,"tid=%s,no find audioStreamIndex error.\n",trace_id);
+        return -1;
+    }
+
+    // 获取音频流
+    AVStream *audioStream = formatContext->streams[audioStreamIndex];
+
+    // 初始化累加器
+    int64_t totalDuration = 0;
+
+    double base_val = av_q2d(audioStream->time_base);
+
+    // 读取每个 packet 并累加时长
+    AVPacket *packet = av_packet_alloc();
+    while (1) {
+        int ret = av_read_frame(formatContext, packet);
+        if(ret < 0){
+            av_log(NULL,AV_LOG_INFO,"tid=%s,av_read_frame finish.\n",trace_id);
+            break;
+        }
+        if (packet->stream_index == audioStreamIndex) {
+            // 计算 packet 时长（秒）
+            totalDuration += packet->duration;
+        }
+
+        av_packet_unref(packet);
+    }
+
+    av_packet_free(packet);
+    *p_duration = (int64_t)(totalDuration * base_val * 100000);
+    // 关闭输入文件
+    avformat_close_input(&formatContext);
+    return  0;
+}
+
+AVInputFormat * get_format(OptionGroupList * gl){
+    AVInputFormat * inputFormat = NULL;
+    for(int i = 0; i < gl->nb_groups;i++){
+        OptionGroup * og =  &gl->groups[i];
+        int next = 1;
+        for(int j = 0;j < og->nb_opts;j++){
+            Option * op = &og->opts[j];
+            if(strcmp(op->key,"f") == 0){
+                inputFormat = av_find_input_format(op->val);
+                next = 0;
+                break;
+            }
+        }
+        if(!next){
+            break;
+        }
+    }
+    return inputFormat;
+}
+
+int quick_duration(char *trace_id, char *cmd, int64_t *p_duration) {
+    *p_duration = -1;
     ParsedOptionsContext parent_context;
     memset(&parent_context, 0, sizeof(ParsedOptionsContext));
     parent_context.raw_context.trace_id = trace_id;
     int ret = parse_cmd_options(cmd, &parent_context);
-    av_log(NULL, AV_LOG_INFO, "tid=%s,parse_cmd_options ret:%d\n", trace_id,ret);
+    av_log(NULL, AV_LOG_INFO, "tid=%s,parse_cmd_options ret:%d\n", trace_id, ret);
     if (ret < 0) {
         ffmpegg_cleanup(&parent_context);
-        return 0;
+        return -1;
     }
 
     ret = open_stream(&parent_context);
-    av_log(NULL, AV_LOG_INFO, "tid=%s,open_stream ret:%d\n",trace_id, ret);
+    av_log(NULL, AV_LOG_INFO, "tid=%s,open_stream ret:%d\n", trace_id, ret);
 
-    if(ret < 0){
+    if (ret < 0) {
         ffmpegg_cleanup(&parent_context);
-        return 0;
+        return -1;
     }
 
     *p_duration = parent_context.raw_context.option_input.duration;
 
-
-    if(parent_context.raw_context.option_input.duration_estimation_method == AVFMT_DURATION_FROM_BITRATE){
-        if(!next){
-            return QUICK_DURATION_INCORRECT;
-        }
-        char * input_file = parent_context.parse_context->groups[1].groups[0].arg;
-        char new_cmd[2048] = {0};
-        char *ext = strchr(input_file,'.');
-        int use_idx = 0;
-        if(strcmp(ext,used_ext[0]) == 0){
-            use_idx = 1;
-
-        }
-        *ext = '\0';
-        sprintf(new_cmd,"%s %s%s",cmd,input_file,used_ext[use_idx]);
+    if (parent_context.raw_context.option_input.duration_estimation_method == AVFMT_DURATION_FROM_BITRATE) {
+        OptionGroupList * gl =  &parent_context.parse_context->groups[1];
+        AVInputFormat *inputFormat = get_format(gl);
+        char * input_file = av_strdup(gl->groups->arg);
         ffmpegg_cleanup(&parent_context);
-
-        ret =  run_ffmpeg_cmd(parent_context.raw_context.trace_id,new_cmd);
-        if(ret < 0){
-            *ext = '.';
-            return ret;
-        }
-        memset(new_cmd,0,sizeof (new_cmd));
-        sprintf(new_cmd,"ffmpeg -i %s%s",input_file,used_ext[use_idx]);
-        *ext = '.';
-        return get_duration_next(trace_id,new_cmd,1,p_duration);
-    }else {
+        ret = calc(parent_context.raw_context.trace_id,input_file,inputFormat,p_duration);
+        av_freep(&input_file);
+    } else{
         ffmpegg_cleanup(&parent_context);
     }
 
-
-    return  ret;
-}
-
-int quick_duration(char * trace_id,char *cmd, int64_t * p_duration){
-    return get_duration_next(trace_id,cmd,0,p_duration);
+    return ret;
 }
