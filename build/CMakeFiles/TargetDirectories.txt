@@ -1,7 +1,0 @@
-/home/xiufeng/github/run-ffmpeg/build/CMakeFiles/run_ffmpeg.dir
-/home/xiufeng/github/run-ffmpeg/build/CMakeFiles/edit_cache.dir
-/home/xiufeng/github/run-ffmpeg/build/CMakeFiles/rebuild_cache.dir
-/home/xiufeng/github/run-ffmpeg/build/CMakeFiles/list_install_components.dir
-/home/xiufeng/github/run-ffmpeg/build/CMakeFiles/install.dir
-/home/xiufeng/github/run-ffmpeg/build/CMakeFiles/install/local.dir
-/home/xiufeng/github/run-ffmpeg/build/CMakeFiles/install/strip.dir

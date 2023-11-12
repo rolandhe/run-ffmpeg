@@ -1,3 +1,0 @@
-/usr/local/lib/librun_ffmpeg.so.0.0.1
-/usr/local/lib/librun_ffmpeg.so
-/usr/local/include/run_ffmpeg.h
