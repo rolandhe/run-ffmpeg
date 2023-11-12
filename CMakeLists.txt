@@ -22,7 +22,14 @@ link_directories(/usr/local/lib)
 add_library(run_ffmpeg SHARED  ${SRCS})
 set_target_properties(run_ffmpeg PROPERTIES VERSION ${PROJECT_VERSION})
 set_target_properties(run_ffmpeg PROPERTIES PUBLIC_HEADER run_ffmpeg.h)
-target_link_libraries(run_ffmpeg avformat avdevice avcodec avutil avfilter swscale swresample m)
+
+if(APPLE)
+    target_link_libraries(run_ffmpeg avformat avdevice avcodec avutil avfilter swscale swresample)
+endif()
+if(UNIX AND NOT APPLE)
+    target_link_libraries(run_ffmpeg avformat avdevice avcodec avutil avfilter swscale swresample m)
+endif()
+
 
 INSTALL(TARGETS run_ffmpeg
         LIBRARY DESTINATION lib
