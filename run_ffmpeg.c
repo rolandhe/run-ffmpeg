@@ -1473,9 +1473,10 @@ int quick_duration(char *trace_id, char *cmd, int64_t *p_duration) {
         ffmpegg_cleanup(&parent_context);
         ret = calc(parent_context.raw_context.trace_id,input_file,inputFormat,p_duration);
         av_freep(&input_file);
+        av_log(NULL, AV_LOG_INFO, "tid=%s,quick_duration caled last ret:%d,%ld\n", trace_id, ret,*p_duration);
     } else{
         ffmpegg_cleanup(&parent_context);
     }
-
+    av_log(NULL, AV_LOG_INFO, "tid=%s,quick_duration last ret:%d,%ld\n", trace_id, ret,*p_duration);
     return ret;
 }
