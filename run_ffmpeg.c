@@ -14,6 +14,7 @@
 #include "open_files.h"
 #include "hw.h"
 
+#define NANO_SIZE 1000000
 
 static int opt_data_frames(void *optctx, const char *opt, const char *arg);
 static int opt_qscale(void *optctx, const char *opt, const char *arg);
@@ -58,13 +59,6 @@ static const char *const G_FRAME_RATES[] = { "25", "30000/1001", "24000/1001" };
             outvar = o->name[i].u.type;\
     }\
 }
-
-
-
-
-
-
-
 
 #define OFFSET(x) offsetof(OptionsContext, x)
 #define RUN_CTX_OFFSET(x) offsetof(ParsedOptionsContext, raw_context) + offsetof(RunContext,x)
@@ -1418,7 +1412,7 @@ int calc(const char * trace_id,const char * filename,AVInputFormat *inputFormat,
     }
 
     av_packet_free(&packet);
-    *p_duration = (int64_t)(totalDuration * base_val * 100000);
+    *p_duration = (int64_t)(totalDuration * base_val * NANO_SIZE);
     // 关闭输入文件
     avformat_close_input(&formatContext);
     return  0;
@@ -1473,9 +1467,10 @@ int quick_duration(char *trace_id, char *cmd, int64_t *p_duration) {
         ffmpegg_cleanup(&parent_context);
         ret = calc(parent_context.raw_context.trace_id,input_file,inputFormat,p_duration);
         av_freep(&input_file);
+        av_log(NULL, AV_LOG_INFO, "tid=%s,quick_duration caled last ret:%d,%ld\n", trace_id, ret,*p_duration);
     } else{
         ffmpegg_cleanup(&parent_context);
     }
-
+    av_log(NULL, AV_LOG_INFO, "tid=%s,quick_duration last ret:%d,%ld\n", trace_id, ret,*p_duration);
     return ret;
 }
