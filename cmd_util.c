@@ -582,7 +582,7 @@ do {                                                                           \
 
         /* AVOptions */
         if (argv[optindex]) {
-            ret = opt_default(NULL, opt, argv[optindex]);
+            ret = opt_default(optionCtx, opt, argv[optindex]);
             if (ret >= 0) {
                 av_log(NULL, AV_LOG_DEBUG, "tid=%s, matched as AVOption '%s' with "
                                            "argument '%s'.\n",trace_id, opt, argv[optindex]);
