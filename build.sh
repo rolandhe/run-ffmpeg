@@ -7,7 +7,7 @@ echo  $OS_NAME
 rm -fr build
 mkdir build
 cd build
-cmake ..
+cmake -DCMAKE_BUILD_TYPE=Release .. 
 make
 
 if [ $OS_NAME = "Darwin" ];then
