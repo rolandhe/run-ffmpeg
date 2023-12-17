@@ -28,6 +28,15 @@ int64_t new_output_mem(){
     memset(p_data,0,sizeof(mem_data));
     return (int64_t )p_data;
 }
+
+int64_t mem_data_len(int64_t point){
+    if(!point){
+        return 0;
+    }
+    mem_data * p = (mem_data*)point;
+    return (int64_t)p->size;
+}
+
 void free_mem(int64_t point,int release_data){
     if(!point){
         return;
