@@ -620,6 +620,10 @@ typedef struct RunContext {
 
     char * trace_id;
 
+#if HAVE_THREADS
+    int need_input_thread;
+#endif
+
 //    char * frame_rates[3];
 } RunContext;
 

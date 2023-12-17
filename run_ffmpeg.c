@@ -1289,7 +1289,19 @@ int parse_cmd_options(char * cmd, ParsedOptionsContext *parent_context){
         av_log(NULL, AV_LOG_FATAL, "Error parsing global options: ");
         goto fail;
     }
-
+#if HAVE_THREADS
+    int need_thread = 0;
+    OptionGroupList* input_list = &p_opctx->groups[GROUP_INFILE];
+    for(int i = 0; i < input_list->nb_groups;i++){
+        OptionGroup *g = &input_list->groups[i];
+        const char * end;
+        if(!av_strstart(g->arg,"filemem:",&end)){
+            need_thread = 1;
+            break;
+        }
+    }
+    parent_context->raw_context.need_input_thread = need_thread;
+#endif
 
 fail:
     if (ret < 0) {

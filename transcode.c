@@ -2182,7 +2182,7 @@ static int get_input_packet(RunContext *run_context,InputFile *f, AVPacket **pkt
     }
 
 #if HAVE_THREADS
-    if (f->thread_queue_size)
+    if (run_context->need_input_thread && f->thread_queue_size)
         return get_input_packet_mt(f, pkt);
 #endif
     *pkt = f->pkt;
@@ -3055,13 +3055,17 @@ static int process_input(RunContext *run_context,int file_index)
             }
         }
 #if HAVE_THREADS
-        free_input_thread(run_context,file_index);
+        if(run_context->need_input_thread){
+            free_input_thread(run_context,file_index);
+        }
 #endif
         ret = seek_to_start(run_context,ifile, is);
 #if HAVE_THREADS
-        thread_ret = init_input_thread(run_context,file_index);
-        if (thread_ret < 0)
-            return thread_ret;
+        if(run_context->need_input_thread) {
+            thread_ret = init_input_thread(run_context, file_index);
+            if (thread_ret < 0)
+                return thread_ret;
+        }
 #endif
         if (ret < 0)
             av_log(NULL, AV_LOG_WARNING, "Seek to start failed.\n");
@@ -3308,7 +3312,7 @@ static int process_input(RunContext *run_context,int file_index)
 
     discard_packet:
 #if HAVE_THREADS
-    if (ifile->thread_queue_size)
+    if (run_context->need_input_thread && ifile->thread_queue_size)
         av_packet_free(&pkt);
     else
 #endif
@@ -3823,8 +3827,10 @@ int transcode(RunContext *run_context)
     timer_start = av_gettime_relative();
 
 #if HAVE_THREADS
-    if ((ret = init_input_threads(run_context)) < 0)
-        goto fail;
+    if(run_context->need_input_thread){
+        if ((ret = init_input_threads(run_context)) < 0)
+            goto fail;
+    }
 #endif
 
     while (!run_context->received_sigterm) {
@@ -3851,7 +3857,9 @@ int transcode(RunContext *run_context)
 //        print_report(0, timer_start, cur_time);
     }
 #if HAVE_THREADS
-    free_input_threads(run_context);
+    if(run_context->need_input_thread){
+        free_input_threads(run_context);
+    }
 #endif
 
     /* at the end of stream, we must flush the decoder buffers */
@@ -3923,7 +3931,9 @@ int transcode(RunContext *run_context)
 
     fail:
 #if HAVE_THREADS
-    free_input_threads(run_context);
+    if(run_context->need_input_thread){
+        free_input_threads(run_context);
+    }
 #endif
 
     if (run_context->option_output.output_streams) {
@@ -4197,7 +4207,9 @@ void ffmpegg_cleanup(ParsedOptionsContext *parsed_ctx)
         av_freep(&run_context->option_output.output_streams[i]);
     }
 #if HAVE_THREADS
-    free_input_threads(run_context);
+    if(run_context->need_input_thread){
+        free_input_threads(run_context);
+    }
 #endif
     for (i = 0; i < run_context->option_input.nb_input_files; i++) {
         avformat_close_input(&run_context->option_input.input_files[i]->ctx);
