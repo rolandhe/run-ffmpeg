@@ -13,9 +13,9 @@ typedef struct _mem_data {
 } mem_data;
 
 int64_t new_input_mem(char * input_data,int64_t input_len,int copy){
-    mem_data * p_data = malloc(sizeof(mem_data));
+    mem_data * p_data = av_malloc(sizeof(mem_data));
     if(copy){
-        char * new_data = malloc(input_len);
+        char * new_data = av_malloc(input_len);
         memcpy(new_data,input_data,input_len);
         p_data->buffer = new_data;
     } else {
@@ -26,7 +26,7 @@ int64_t new_input_mem(char * input_data,int64_t input_len,int copy){
 }
 
 int64_t new_output_mem(){
-    mem_data * p_data = malloc(sizeof(mem_data));
+    mem_data * p_data = av_malloc(sizeof(mem_data));
     p_data->buffer = NULL;
     p_data->size = 0;
     int64_t  ret = (int64_t )p_data;
@@ -65,7 +65,7 @@ void free_mem(int64_t point,int release_data){
     }
     mem_data * p = (mem_data*)point;
     if(release_data && p->buffer){
-        free(p->buffer);
+        av_free(p->buffer);
     }
-    free(p);
+    av_free(p);
 }
