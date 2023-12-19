@@ -856,10 +856,11 @@ static int print_sdp(RunContext *run_context)
 
     av_sdp_create(avc, j, sdp, sizeof(sdp));
 
-    if (!run_context->sdp_filename) {
-        printf("SDP:\n%s\n", sdp);
-        fflush(stdout);
-    } else {
+//    if (!run_context->sdp_filename) {
+//        printf("SDP:\n%s\n", sdp);
+//        fflush(stdout);
+//    } else {
+    if (run_context->sdp_filename) {
         // 不使用 &int_cb
         if (avio_open2(&sdp_pb, run_context->sdp_filename, AVIO_FLAG_WRITE, NULL, NULL) < 0) {
             av_log(NULL, AV_LOG_ERROR, "Failed to open sdp file '%s'\n", run_context->sdp_filename);
@@ -1342,7 +1343,8 @@ static int check_init_output_file(RunContext *run_context,OutputFile *of, int fi
     av_dump_format(of->ctx, file_index, of->ctx->url, 1);
     run_context->nb_output_dumped++;
 
-    if (run_context->sdp_filename || run_context->want_sdp)
+//    || run_context->want_sdp
+    if (run_context->sdp_filename )
         if(0>print_sdp(run_context)){
             return -1;
         }

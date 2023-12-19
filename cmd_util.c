@@ -421,7 +421,7 @@ static int init_parse_context(ParseContext *octx,
 
     parent_context->raw_context.find_stream_info = 1;
 
-    parent_context->raw_context.want_sdp = 1;
+//    parent_context->raw_context.want_sdp = 1;
     parent_context->raw_context.transcode_init_done = ATOMIC_VAR_INIT(0);
 
     parent_context->raw_context.dup_warning = 1000;

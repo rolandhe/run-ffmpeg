@@ -601,7 +601,7 @@ typedef struct RunContext {
     char *videotoolbox_pixfmt;
 
     unsigned nb_output_dumped;
-    int want_sdp;
+//    int want_sdp;
     int main_return_code;
     atomic_int transcode_init_done;
 
