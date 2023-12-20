@@ -453,7 +453,7 @@ const OptionDef options[] = {
 #endif
 
 #if CONFIG_QSV
-        { "qsv_device", HAS_ARG | OPT_STRING | OPT_EXPERT, { &qsv_device },
+        { "qsv_device", HAS_ARG | OPT_STRING | OPT_EXPERT, { .off = RUN_CTX_OFFSET(qsv_device) },
         "set QSV hardware device (DirectX adapter index, DRM path or X11 display name)", "device"},
 #endif
 

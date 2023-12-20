@@ -102,16 +102,17 @@ static const char *const opt_name_enc_time_bases[] = {"enc_time_base", NULL};
        WARN_MULTIPLE_OPT_USAGE(name, type, so, st);\
 }
 
-const HWAccel hwaccels[] = {
-#if CONFIG_VIDEOTOOLBOX
-        { "videotoolbox", videotoolbox_init, HWACCEL_VIDEOTOOLBOX, AV_PIX_FMT_VIDEOTOOLBOX },
-#endif
-#if CONFIG_LIBMFX
-        { "qsv",   qsv_init,   HWACCEL_QSV,   AV_PIX_FMT_QSV },
-#endif
-        { 0 },
-};
+//const HWAccel hwaccels[] = {
+//#if CONFIG_VIDEOTOOLBOX
+//        { "videotoolbox", videotoolbox_init, HWACCEL_VIDEOTOOLBOX, AV_PIX_FMT_VIDEOTOOLBOX },
+//#endif
+//#if CONFIG_LIBMFX
+//        { "qsv",   qsv_init,   HWACCEL_QSV,   AV_PIX_FMT_QSV },
+//#endif
+//        { 0 },
+//};
 
+extern const HWAccel hwaccels[];
 extern  const OptionDef options[];
 
 static AVCodec *find_codec_or_die(const char *name, enum AVMediaType type, int encoder, int *error) {
@@ -176,6 +177,8 @@ static int add_input_streams(OptionsContext *o, AVFormatContext *ic)
         AVStream *st = ic->streams[i];
         AVCodecParameters *par = st->codecpar;
         InputStream *ist = av_mallocz(sizeof(*ist));
+        ist->p_run_context = o->run_context_ref;
+
         char *framerate = NULL, *hwaccel_device = NULL;
         const char *hwaccel = NULL;
         char *hwaccel_output_format = NULL;

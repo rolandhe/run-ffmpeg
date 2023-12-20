@@ -3,6 +3,7 @@
 //
 #include <libavfilter/buffersink.h>
 #include <libavutil/pixdesc.h>
+#include <libavutil/hwcontext_qsv.h>
 #include "hw.h"
 
 static HWDevice *hw_device_get_by_type(RunContext *run_context,enum AVHWDeviceType type)
@@ -533,6 +534,83 @@ int hw_device_setup_for_filter(RunContext *run_context,FilterGraph *fg)
                 return AVERROR(ENOMEM);
         }
     }
+
+    return 0;
+}
+
+
+static int qsv_device_init(RunContext *run_context,InputStream *ist)
+{
+    int err;
+    AVDictionary *dict = NULL;
+
+    if (run_context->qsv_device) {
+        err = av_dict_set(&dict, "child_device", run_context->qsv_device, 0);
+        if (err < 0)
+            return err;
+    }
+
+    err = av_hwdevice_ctx_create(&run_context->hw_device_ctx, AV_HWDEVICE_TYPE_QSV,
+                                 ist->hwaccel_device, dict, 0);
+    if (err < 0) {
+        av_log(NULL, AV_LOG_ERROR, "Error creating a QSV device\n");
+        goto err_out;
+    }
+
+    err_out:
+    if (dict)
+        av_dict_free(&dict);
+
+    return err;
+}
+static int qsv_get_buffer(AVCodecContext *s, AVFrame *frame, int flags)
+{
+    InputStream *ist = s->opaque;
+
+    return av_hwframe_get_buffer(ist->hw_frames_ctx, frame, 0);
+}
+static void qsv_uninit(AVCodecContext *s)
+{
+    InputStream *ist = s->opaque;
+    av_buffer_unref(&ist->hw_frames_ctx);
+}
+int qsv_init(void *p_run_context,AVCodecContext *s)
+{
+    RunContext * run_context = p_run_context;
+    InputStream *ist = s->opaque;
+    AVHWFramesContext *frames_ctx;
+    AVQSVFramesContext *frames_hwctx;
+    int ret;
+
+    if (!run_context->hw_device_ctx) {
+        ret = qsv_device_init(run_context,ist);
+        if (ret < 0)
+            return ret;
+    }
+
+    av_buffer_unref(&ist->hw_frames_ctx);
+    ist->hw_frames_ctx = av_hwframe_ctx_alloc(run_context->hw_device_ctx);
+    if (!ist->hw_frames_ctx)
+        return AVERROR(ENOMEM);
+
+    frames_ctx   = (AVHWFramesContext*)ist->hw_frames_ctx->data;
+    frames_hwctx = frames_ctx->hwctx;
+
+    frames_ctx->width             = FFALIGN(s->coded_width,  32);
+    frames_ctx->height            = FFALIGN(s->coded_height, 32);
+    frames_ctx->format            = AV_PIX_FMT_QSV;
+    frames_ctx->sw_format         = s->sw_pix_fmt;
+    frames_ctx->initial_pool_size = 64 + s->extra_hw_frames;
+    frames_hwctx->frame_type      = MFX_MEMTYPE_VIDEO_MEMORY_DECODER_TARGET;
+
+    ret = av_hwframe_ctx_init(ist->hw_frames_ctx);
+    if (ret < 0) {
+        av_log(NULL, AV_LOG_ERROR, "Error initializing a QSV frame pool\n");
+        return ret;
+    }
+
+    ist->hwaccel_get_buffer = qsv_get_buffer;
+    ist->hwaccel_uninit     = qsv_uninit;
 
     return 0;
 }
