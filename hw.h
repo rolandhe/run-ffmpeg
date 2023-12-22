@@ -17,6 +17,7 @@ int hw_device_setup_for_filter(RunContext *run_context,FilterGraph *fg);
 
 int hwaccel_decode_init(AVCodecContext *avctx);
 
-
+#if CONFIG_QSV
 int qsv_init(void *run_context,AVCodecContext *s);
+#endif
 #endif //EFFMPEG_HW_H

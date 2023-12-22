@@ -538,7 +538,7 @@ int hw_device_setup_for_filter(RunContext *run_context,FilterGraph *fg)
     return 0;
 }
 
-
+#if CONFIG_QSV
 static int qsv_device_init(RunContext *run_context,InputStream *ist)
 {
     int err;
@@ -614,3 +614,4 @@ int qsv_init(void *p_run_context,AVCodecContext *s)
 
     return 0;
 }
+#endif
