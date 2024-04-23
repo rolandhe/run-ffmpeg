@@ -3,7 +3,9 @@
 //
 #include <libavfilter/buffersink.h>
 #include <libavutil/pixdesc.h>
+#if CONFIG_QSV
 #include <libavutil/hwcontext_qsv.h>
+#endif
 #include "hw.h"
 
 static HWDevice *hw_device_get_by_type(RunContext *run_context,enum AVHWDeviceType type)
